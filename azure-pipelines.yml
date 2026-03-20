@@ -1,0 +1,97 @@
+trigger:
+  branches:
+    include:
+      - main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  pythonVersion: '3.10'
+  huggingFaceSpace: 'your-username/stockio'
+
+stages:
+  - stage: Test
+    displayName: 'Lint & Test'
+    jobs:
+      - job: TestJob
+        steps:
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: '$(pythonVersion)'
+
+          - script: |
+              pip install -r requirements.txt
+              pip install pytest flake8
+            displayName: 'Install dependencies'
+
+          - script: |
+              flake8 --max-line-length=120 --ignore=E501,W503 *.py
+            displayName: 'Lint'
+
+          - script: |
+              python -c "
+              from data_fetcher import fetch_stock_data, _generate_synthetic_data
+              from forecasting import run_prophet_forecast, run_arima_forecast, run_xgboost_forecast
+              from sentiment import analyze_sentiment
+              from anomaly_detection import detect_anomalies
+              from cache_manager import CacheManager
+              from utils import compute_technical_indicators, compute_risk_metrics
+              print('All imports OK')
+
+              # Test synthetic data generation
+              df = _generate_synthetic_data('AAPL', '2023-01-01', '2024-01-01')
+              assert len(df) > 200, f'Expected 200+ rows, got {len(df)}'
+              assert 'Close' in df.columns
+              print(f'Synthetic data: {len(df)} rows OK')
+
+              # Test technical indicators
+              df = compute_technical_indicators(df)
+              assert 'RSI' in df.columns
+              assert 'MACD' in df.columns
+              print('Technical indicators OK')
+
+              # Test anomaly detection
+              anomalies = detect_anomalies(df, sensitivity=2.5)
+              print(f'Anomalies detected: {len(anomalies)} OK')
+
+              # Test sentiment
+              scores = analyze_sentiment('Stock surges on strong earnings beat')
+              assert scores['compound'] > 0
+              print(f'Sentiment analysis OK: {scores}')
+
+              # Test cache
+              cache = CacheManager()
+              cache.set('test_key', {'data': [1, 2, 3]})
+              result = cache.get('test_key')
+              assert result is not None
+              print('Cache OK')
+
+              print('=== ALL TESTS PASSED ===')
+              "
+            displayName: 'Run Tests'
+
+  - stage: Deploy
+    displayName: 'Deploy to Hugging Face'
+    dependsOn: Test
+    condition: succeeded()
+    jobs:
+      - job: DeployJob
+        steps:
+          - script: |
+              pip install huggingface_hub
+              python -c "
+              from huggingface_hub import HfApi
+              import os
+              api = HfApi()
+              api.upload_folder(
+                  folder_path='.',
+                  repo_id='$(huggingFaceSpace)',
+                  repo_type='space',
+                  token=os.environ.get('HF_TOKEN'),
+              )
+              print('Deployed to Hugging Face Spaces')
+              "
+            displayName: 'Push to HF Spaces'
+            env:
+              HF_TOKEN: $(HF_TOKEN)
