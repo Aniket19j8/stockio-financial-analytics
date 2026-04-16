@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip --version)",
+      "Bash(python -c \"import app\")",
+      "Bash(python -m streamlit run app.py --server.headless false)",
+      "Bash(python -m streamlit run app.py --server.headless true)",
+      "Bash(python -c ':*)"
+    ]
+  }
+}
