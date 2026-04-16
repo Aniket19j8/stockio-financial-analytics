@@ -356,12 +356,14 @@ if run_analysis or "results" in st.session_state:
                         row=1, col=1,
                     )
                     if "upper" in fc and "lower" in fc:
+                        hex_c = colors.get(model_name, "#ffffff").lstrip("#")
+                        ci_color = f"rgba({int(hex_c[0:2],16)},{int(hex_c[2:4],16)},{int(hex_c[4:6],16)},0.15)"
                         fig.add_trace(
                             go.Scatter(
                                 x=list(fc["dates"]) + list(fc["dates"][::-1]),
                                 y=list(fc["upper"]) + list(fc["lower"][::-1]),
                                 fill="toself",
-                                fillcolor=colors.get(model_name, "#fff").replace(")", ",0.1)").replace("rgb", "rgba") if "rgb" in colors.get(model_name, "") else f"{colors.get(model_name, '#fff')}18",
+                                fillcolor=ci_color,
                                 line=dict(color="rgba(0,0,0,0)"),
                                 name=f"{model_name} CI",
                                 showlegend=False,
@@ -406,7 +408,7 @@ if run_analysis or "results" in st.session_state:
                 legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
                 margin=dict(l=50, r=50, t=30, b=30),
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
 
             # --- Forecast Metrics ---
             col1, col2, col3 = st.columns(3)
@@ -453,7 +455,7 @@ if run_analysis or "results" in st.session_state:
                             yaxis_title="Compound Score",
                             margin=dict(l=50, r=50, t=40, b=30),
                         )
-                        st.plotly_chart(fig_sent, use_container_width=True)
+                        st.plotly_chart(fig_sent, width='stretch')
 
                 with sent_cols[1]:
                     overall = sentiment.get("overall", {})
@@ -479,12 +481,12 @@ if run_analysis or "results" in st.session_state:
                 with shap_cols[0]:
                     fig_shap_summary = plot_shap_summary(shap_data)
                     if fig_shap_summary:
-                        st.plotly_chart(fig_shap_summary, use_container_width=True)
+                        st.plotly_chart(fig_shap_summary, width='stretch')
 
                 with shap_cols[1]:
                     fig_shap_waterfall = plot_shap_waterfall(shap_data)
                     if fig_shap_waterfall:
-                        st.plotly_chart(fig_shap_waterfall, use_container_width=True)
+                        st.plotly_chart(fig_shap_waterfall, width='stretch')
 
             # --- Risk Dashboard ---
             st.subheader("⚠️ Risk Metrics")
@@ -519,7 +521,7 @@ if run_analysis or "results" in st.session_state:
                 yaxis_title="Normalized Price",
                 margin=dict(l=50, r=50, t=50, b=30),
             )
-            st.plotly_chart(fig_compare, use_container_width=True)
+            st.plotly_chart(fig_compare, width='stretch')
 
             # Correlation Matrix
             close_data = pd.DataFrame({t: d["df"]["Close"] for t, d in results.items()})
@@ -529,7 +531,7 @@ if run_analysis or "results" in st.session_state:
                 title="Price Correlation Matrix",
             )
             fig_corr.update_layout(height=400, template="plotly_dark")
-            st.plotly_chart(fig_corr, use_container_width=True)
+            st.plotly_chart(fig_corr, width='stretch')
 
             # Risk-Return Scatter
             risk_return_data = []
@@ -542,15 +544,23 @@ if run_analysis or "results" in st.session_state:
                     "Sharpe": r["sharpe"],
                 })
             rr_df = pd.DataFrame(risk_return_data)
+            # Create a positive marker size column from Sharpe (Plotly 'size' must be non-negative)
+            rr_df = pd.DataFrame(risk_return_data)
+            rr_df["MarkerSize"] = rr_df["Sharpe"].abs()
+            if rr_df["MarkerSize"].max() == 0:
+                rr_df["MarkerSize"] = 1
+            # Scale sizes for visibility (avoid too-small markers)
+            rr_df["MarkerSize"] = 10 * (rr_df["MarkerSize"] / (rr_df["MarkerSize"].max() or 1)) + 5
+
             fig_rr = px.scatter(
                 rr_df, x="Volatility", y="Annualized Return",
-                text="Ticker", size="Sharpe", color="Sharpe",
+                text="Ticker", size="MarkerSize", color="Sharpe",
                 color_continuous_scale="viridis",
                 title="Risk-Return Profile",
             )
             fig_rr.update_traces(textposition="top center")
             fig_rr.update_layout(height=400, template="plotly_dark")
-            st.plotly_chart(fig_rr, use_container_width=True)
+            st.plotly_chart(fig_rr, width='stretch')
         else:
             st.info("Select at least 2 tickers for comparison.")
 
@@ -582,7 +592,7 @@ if run_analysis or "results" in st.session_state:
                     title=f"{ticker} Anomaly Map",
                     margin=dict(l=50, r=50, t=50, b=30),
                 )
-                st.plotly_chart(fig_anom, use_container_width=True)
+                st.plotly_chart(fig_anom, width='stretch')
 
                 # Anomaly Details Table
                 display_df = anoms[["Close", "Volume", "anomaly_score", "anomaly_type"]].copy()
